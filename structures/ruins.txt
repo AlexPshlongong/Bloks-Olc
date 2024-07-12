@@ -1,0 +1,10 @@
+w = stone wall
+f = stone floor
+d = stone door
+~
+wwwww....
+wfffd....
+wfffwwdww
+wfffffffw
+wfffffffw
+wwwwwwwww

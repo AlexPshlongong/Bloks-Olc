@@ -1,0 +1,9 @@
+w = wood wall
+f = wood floor
+d = wood door
+~
+....wdwwdw....
+..wwwffffwww..
+wwwffffffffwww
+..wwwffffwww..
+....wdwwdw....

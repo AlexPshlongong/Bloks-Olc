@@ -2,31 +2,45 @@ import math, random, pygame
 from crafting import *
 from perlin_noise import PerlinNoise
 
+gameRunning = True
 tileSize = 50
 
-class STATS():
+class GAME_SETTINGS():
     def __init__(self):
+        self.displayWidth = 1366
+        self.displayHeight = 768
         self.borderedTextures = False
         self.GODMODE = False
         self.splashMine = 5
         self.itemMomentum = 15
-        self.maxStack = 16+self.GODMODE*984
         self.menu = "pregame"
         self.craftingMenu = "materials"
         self.crafting = ""
         self.fullscreen = False
+        self.maxStack = 16+self.GODMODE*984
         self.viewDistance = 17+self.GODMODE*50
-        self.playerReach = tileSize*2+self.GODMODE*988
-stats = STATS()
+        self.basePlayerReach = tileSize*2
+        self.maxStamina = 100
+        self.darkeningtime = 60
+        self.timetransitiontime = 60
+        self.nightlength = 1
+        self.time = 0
+        self.day = 0
+        self.f3_toggled = False
+        self.maxItemsOnFloor = 500
+        self.itemDeathClock = 60*60
+game_settings = GAME_SETTINGS()
 
 BLACK = (0, 0, 0)
 GREY = (25, 25, 25)
-displayHeight = 1040
-displayWidth = 1900
-displayHalfH = displayHeight/2
-displayHalfW = displayWidth/2
+bord = 5
+cols = [(32, 29, 209), (34, 78, 199), (46, 137, 217), (37, 175, 217), (56, 224, 213), (54, 214, 102), (44, 232, 23), (97, 217, 37), (199, 217, 37), (217, 193, 37), (217, 151, 37), (217, 82, 28), (219, 49, 11)]
+displayHalfH = game_settings.displayHeight/2
+displayHalfW = game_settings.displayWidth/2
+alph = 0
+tileAmount = 0
 pygame.init()
-window = pygame.display.set_mode((displayWidth, displayHeight))
+window = pygame.display.set_mode((game_settings.displayWidth, game_settings.displayHeight))
 pygame.mouse.set_visible(0)
 gameFPS = 60
 gameClock = pygame.time.Clock()
@@ -60,12 +74,12 @@ enhancementSprites = {"luck" : pygame.transform.scale(pygame.image.load("sprites
                       "reach" : pygame.transform.scale(pygame.image.load("sprites/gui/enhancements/reach.png").convert_alpha(), (18, 18)),
                       "durability" : pygame.transform.scale(pygame.image.load("sprites/gui/enhancements/durability.png").convert_alpha(), (18, 18))}
 
-pregameBackground = (pygame.transform.scale(pygame.image.load("sprites/gui/pregame background/"+str(random.randint(1, 3))+".png").convert_alpha(), (displayWidth, displayHeight+200)))
+pregameBackground = (pygame.transform.scale(pygame.image.load("sprites/gui/pregame background/"+str(random.randint(1, 3))+".png").convert_alpha(), (game_settings.displayWidth, game_settings.displayHeight+200)))
 nums = [1, 2, 3, 4]
 pregameAnimateBackground = []
 for i in range(4):
     ind = random.randint(0, 3-i)
-    pregameAnimateBackground.append(pygame.transform.scale(pygame.image.load("sprites/gui/pregame animation background/"+str(nums[ind])+".png").convert_alpha(), (displayWidth, displayWidth)))
+    pregameAnimateBackground.append(pygame.transform.scale(pygame.image.load("sprites/gui/pregame animation background/"+str(nums[ind])+".png").convert_alpha(), (game_settings.displayWidth, game_settings.displayWidth)))
     del nums[ind]
 pregameAnimation = 0
 pregameFloatingTexts = ["born in the",
@@ -85,14 +99,15 @@ craftingSelectsDict = {1: "materials",
                        "tools" : 1,
                        "armour" : 2,
                        "special" : 3}
-class CSTATS():
+class CRAFTING_SETTINGS():
     def __init__(self):
-        self.invX = displayHalfW-inventoryImg.get_width()/2+150
+        self.ankInvX = displayHalfW-inventoryImg.get_width()/2+320
+        self.invX = self.ankInvX
         self.invY = displayHalfH-inventoryImg.get_height()/2-100
         self.craftIndex = ""
         self.craftingAnimation = 0
         
-cstats = CSTATS()
+crafting_settings = CRAFTING_SETTINGS()
 class CTEMP():
     def __init__(self):
         self.amountNeeded = []
@@ -102,14 +117,14 @@ ctemp = CTEMP()
 buildResourceSprites = {"wood" : pygame.transform.scale(pygame.image.load("sprites/items/wood.png").convert_alpha(), (40, 40)),
     "stone" :  pygame.transform.scale(pygame.image.load("sprites/items/stone.png").convert_alpha(), (40, 40)),
     "hay" :  pygame.transform.scale(pygame.image.load("sprites/items/hay.png").convert_alpha(), (40, 40))}
-class BSTATS():
+class BUILDING_SETTINGS():
     def __init__(self):
         self.x = 0
         self.y = 0
-        self.buildSelected = []
+        self.buildSelected = [] # 2 elements, first element = waht material (wood, stone, hay), second element = what structure (floor, wall, door)
         self.sprite = ""
         
-bstats = BSTATS()
+building_settings = BUILDING_SETTINGS()
 
 # testing
 biomes = ["plains",
@@ -124,7 +139,7 @@ biomes = ["volcano",
           "desert",
           "forest",
           "plains"]
-"""
+          """
 biomeSize = 20 # 50 #HAS TO BE ABOVE 20
 worldWidth = 38 # 50 #HAS TO BE ABOVE 40
 while biomeSize%4:
@@ -137,8 +152,8 @@ class GLOBAL_KEYS():
         self.key = []
 globalKeys = GLOBAL_KEYS()
 
-displayTWidth = int(displayWidth/tileSize)+1
-displayTHeight = int(displayWidth/tileSize)+1
+displayTWidth = int(game_settings.displayWidth/tileSize)+2
+displayTHeight = int(game_settings.displayWidth/tileSize)+1
 
 tileHalfS = tileSize/2
 worldHalfW = worldWidth / 2
@@ -156,49 +171,53 @@ gameRunning = True
 closeTile = pygame.transform.scale(pygame.image.load("sprites/gui/close selected tile.png").convert_alpha(), (tileSize, tileSize))
 farTile = pygame.transform.scale(pygame.image.load("sprites/gui/far selected tile.png").convert_alpha(), (tileSize, tileSize))
 
-def wave_sprites(tiles):
-    for i in range(len(tiles)):
-        if tiles[i].tile == "water" or tiles[i].tile == "shore":
+def wave_sprites(local_tiles):
+    for i in range(len(local_tiles)):
+        if local_tiles[i].tile == "water" or local_tiles[i].tile == "shore":
             rng = random.randint(0, 3)
             name = ""
             if worldHeight+1 < i < worldSize-worldHeight-1 and (i+1)%worldHeight:
                 
-                if not (tiles[i-1].tile == "water" or tiles[i-1].tile == "shore"): # not water top
+                if not (local_tiles[i-1].tile == "water" or local_tiles[i-1].tile == "shore"): # not water top
                     name += "t "
-                elif not (tiles[i-1+worldHeight].tile == "water" or tiles[i-1+worldHeight].tile == "shore"): # no water top right
-                    if (tiles[i+worldHeight].tile == "water" or tiles[i+worldHeight].tile == "shore"): # water right
+                elif not (local_tiles[i-1+worldHeight].tile == "water" or local_tiles[i-1+worldHeight].tile == "shore"): # no water top right
+                    if (local_tiles[i+worldHeight].tile == "water" or local_tiles[i+worldHeight].tile == "shore"): # water right
                         name += "tr "
                         
-                if not (tiles[i+worldHeight].tile == "water" or tiles[i+worldHeight].tile == "shore"): # not water right
+                if not (local_tiles[i+worldHeight].tile == "water" or local_tiles[i+worldHeight].tile == "shore"): # not water right
                     name += "r "
-                elif not (tiles[i+1+worldHeight].tile == "water" or tiles[i+1+worldHeight].tile == "shore"): # no water bottom right
-                    if (tiles[i+1].tile == "water" or tiles[i+1].tile == "shore"): # water bottom
+                elif not (local_tiles[i+1+worldHeight].tile == "water" or local_tiles[i+1+worldHeight].tile == "shore"): # no water bottom right
+                    if (local_tiles[i+1].tile == "water" or local_tiles[i+1].tile == "shore"): # water bottom
                         name += "br "
                         
-                if not (tiles[i+1].tile == "water" or tiles[i+1].tile == "shore"): # not water bottom
+                if not (local_tiles[i+1].tile == "water" or local_tiles[i+1].tile == "shore"): # not water bottom
                     name += "b "
-                elif not (tiles[i+1-worldHeight].tile == "water" or tiles[i+1-worldHeight].tile == "shore"): # no water bottom left
-                    if (tiles[i-worldHeight].tile == "water" or tiles[i-worldHeight].tile == "shore"): # water left
+                elif not (local_tiles[i+1-worldHeight].tile == "water" or local_tiles[i+1-worldHeight].tile == "shore"): # no water bottom left
+                    if (local_tiles[i-worldHeight].tile == "water" or local_tiles[i-worldHeight].tile == "shore"): # water left
                         name += "bl "
-                if not (tiles[i-worldHeight].tile == "water" or tiles[i-worldHeight].tile == "shore"): # not water left
+                if not (local_tiles[i-worldHeight].tile == "water" or local_tiles[i-worldHeight].tile == "shore"): # not water left
                     name += "l "
-                elif not (tiles[i-1-worldHeight].tile == "water" or tiles[i-1-worldHeight].tile == "shore"): # no water top left
-                    if (tiles[i-1].tile == "water" or tiles[i-1].tile == "shore"): # water top
+                elif not (local_tiles[i-1-worldHeight].tile == "water" or local_tiles[i-1-worldHeight].tile == "shore"): # no water top left
+                    if (local_tiles[i-1].tile == "water" or local_tiles[i-1].tile == "shore"): # water top
                         name += "tl "
                 
             if name != "" and name != "t r b l ":
-                tiles[i].waterCons = name
+                local_tiles[i].waterCons = name
                 for j in range(rng):
-                    tiles[i].waveSprite.append("")
+                    local_tiles[i].waveSprite.append("")
                 for j in range(4):
-                    tiles[i].waveSprite.append(pygame.transform.scale(pygame.image.load("sprites/waves/animation "+str(j+1)+"/"+name.strip(" ")+".png"), (tileSize, tileSize)))
+                    local_tiles[i].waveSprite.append(pygame.transform.scale(pygame.image.load("sprites/waves/animation "+str(j+1)+"/"+name.strip(" ")+".png"), (tileSize, tileSize)))
                 for j in range(3-rng):
-                    tiles[i].waveSprite.append("")
+                    local_tiles[i].waveSprite.append("")
+    return local_tiles
+
 
 coveredTile = pygame.transform.scale(pygame.image.load("sprites/unbordered blocks/cloud/1.png"), (tileSize, tileSize))
 
 class TILE():
     def __init__(self, x, y, tile, specTile):
+        self.material = ""
+        self.waterCons = ""
         self.covered = 255
         self.size = tileSize
         self.x = x*tileSize
@@ -207,6 +226,7 @@ class TILE():
         self.building = ""
         self.buildSprite = ""
         self.i = ""
+        self.darkness = 0
 
         accY = y+worldHalfH
         self.biome = biomes[int(accY/biomeSize)]
@@ -339,15 +359,13 @@ class TILE():
                 self.buildSprite = pygame.transform.scale(pygame.image.load("sprites/buildings/"+self.building+"/"+str(random.randint(1, 3))+".png").convert_alpha(), (self.size, self.size))
 
             self.i = "tile"
-        self.lightLevel = 0
-        self.waterCons = ""
         
         if self.tile == "water" or self.tile == "shore":
             self.waveSprite = []
             self.waveChance = random.randint(0, 1)
         self.pregameColour = col_dict[self.tile]
 
-        if stats.borderedTextures:
+        if game_settings.borderedTextures:
             self.sprite = pygame.transform.scale(pygame.image.load("sprites/bordered blocks/"+self.tile+"/"+str(random.randint(1,3))+".png").convert_alpha(), (self.size, self.size))
         else:
             self.sprite = pygame.transform.scale(pygame.image.load("sprites/unbordered blocks/"+self.tile+"/"+str(random.randint(1,3))+".png").convert_alpha(), (self.size, self.size))
@@ -367,6 +385,7 @@ col_dict = {"lava" : (230, 93, 30),
 
 class DROPPED_ITEM():
     def __init__(self, x, y, item, enhancements, durability):
+        self.lifetime = 0
         self.size = 32
         self.i = "item"
         self.weight = weightsdict[item]
@@ -375,8 +394,8 @@ class DROPPED_ITEM():
         self.enhancements = enhancements
         self.durability = durability
         self.item = item
-        self.goingX = random.randint(stats.itemMomentum*-1, stats.itemMomentum)
-        self.goingY = random.randint(stats.itemMomentum*-1, stats.itemMomentum)
+        self.goingX = random.randint(game_settings.itemMomentum*-1, game_settings.itemMomentum)
+        self.goingY = random.randint(game_settings.itemMomentum*-1, game_settings.itemMomentum)
         self.sprite = pygame.transform.scale(pygame.image.load("sprites/items/"+item+".png").convert_alpha(), (self.size, self.size))
 droppedItems = []
 
@@ -398,32 +417,25 @@ mouse = MOUSE()
 
 
 class PLAYER():
-    def __init__(self, tiles):
+    def __init__(self, local_tiles):
         self.i = "player"
         self.x = 0
-        self.y = ((worldHeight-30)*tiles[0].size)/2+displayHalfH
+        self.y = ((worldHeight-30)*local_tiles[0].size)/2+displayHalfH
         self.tile = int((self.y*-1+worldHAccHeight)/tileSize)+int((self.x+worldHAccWidth)/tileSize)*worldHeight
         self.height = 64
         self.width = self.height/2
         self.halfWidth = self.width/2
         self.fWidth = self.width/4
         self.sprite = pygame.transform.scale(pygame.image.load("sprites/player/player.png").convert_alpha(), (self.width, self.height))
-        if stats.GODMODE:
-            self.speed = 5
-            self.maxSpeed = 20
-            self.decSpeed = 5
-            self.attackSpeed = 5
-            self.reach = tileSize*200
-        else:
-            self.speed = 0.5
-            self.maxSpeed = 3
-            self.decSpeed = 5
-            self.attackSpeed = 0.6
-            self.reach = tileSize*2
+        self.speed = 0.5
+        self.maxSpeed = 3
+        self.decSpeed = 5
+        self.attackSpeed = 0.6
         self.sprintMultiplier = 1.5
         self.xAcc = 0
         self.yAcc = 0
         self.punchTurn = 0
+        self.reach = tileSize*2
         self.inReach = False
         self.damage = 10
         self.inventory = []
@@ -436,21 +448,27 @@ class PLAYER():
         self.selectedHBSlot = ""
         self.HBcycle = 7
 
+        self.hpCheckCooldown = 0
         self.maxHealth = 5
         self.health = self.maxHealth
         self.defence = 1
-        self.stamina = 100
+        self.stamina = game_settings.maxStamina
         self.energy = self.stamina
         self.hunger = 500
         self.hydration = 500
-        self.temperature = 36
+        self.temperature = 0
+        self.temperature_damage_cd = 5*60
  
+        
         self.xCol_1 = int((self.y+worldHAccHeight)/tileSize)+int((self.x-self.fWidth+worldHAccWidth)/tileSize)*worldHeight
         self.xCol_2 = int((self.y+worldHAccHeight)/tileSize)+int((self.x+self.fWidth+worldHAccWidth)/tileSize)*worldHeight
-        while not (tiles[self.xCol_1].canwalk and tiles[self.xCol_2].canwalk):# normal
+        
+        while not (local_tiles[self.xCol_1].canwalk and local_tiles[self.xCol_2].canwalk):# normal
             self.y -= 1
             self.xCol_1 = int((self.y+worldHAccHeight)/tileSize)+int((self.x-self.fWidth+worldHAccWidth)/tileSize)*worldHeight
-            self.xCol_2 = int((self.y+worldHAccHeight)/tileSize)+int((self.x+self.fWidth+worldHAccWidth)/tileSize)*worldHeight            
+            self.xCol_2 = int((self.y+worldHAccHeight)/tileSize)+int((self.x+self.fWidth+worldHAccWidth)/tileSize)*worldHeight
+        
+        self.tile = int((self.y+worldHAccHeight)/tileSize)+int((self.x+worldHAccWidth)/tileSize)*worldHeight
 
 
 class INVENTORY_ITEM():
@@ -464,10 +482,11 @@ class INVENTORY_ITEM():
         self.enhancements = []
 
 class PARTICLE():
-    def __init__(self, x, y, col):
+    def __init__(self, x, y, col, deathspeed):
         self.goingX = random.randint(-10, 10)
         self.goingY = random.randint(-10, 10)
-        self.alpha = random.randint(50, 150)
+        self.alpha = random.randint(150, 250)
+        self.deathspeed = deathspeed
         self.col = col
         self.x = x
         self.y = y
@@ -498,11 +517,11 @@ class CAMERA():
     def __init__(self):
         self.x = displayHalfW
         self.y = (worldHeight*tileSize)/2-displayHalfH
-        if stats.GODMODE:
+        if game_settings.GODMODE:
             self.smoothness = 1
         else:
             self.smoothness = 1 # usually 10000000 or something
-        if stats.GODMODE:
+        if game_settings.GODMODE:
             self.IGSmoothness = 1
         else:
             self.IGSmoothness = 1

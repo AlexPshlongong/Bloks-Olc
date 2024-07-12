@@ -39,6 +39,7 @@ craftedItemDurability = {"wood" : 25,
                          "stone" : 50,
                          "iron" : 100,
                          "steel" : 150,
+                         "gold" : 250,
                          "titanium" : 400,
                          "bloktanium" : 900}
 
