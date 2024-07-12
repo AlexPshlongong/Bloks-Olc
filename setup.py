@@ -8,7 +8,9 @@ tileSize = 50
 class GAME_SETTINGS():
     def __init__(self):
         self.displayWidth = 1366
+        self.displayHalfWidth = self.displayWidth/2
         self.displayHeight = 768
+        self.displayHalfHeight = self.displayHeight/2
         self.borderedTextures = False
         self.GODMODE = False
         self.splashMine = 5
@@ -18,7 +20,7 @@ class GAME_SETTINGS():
         self.crafting = ""
         self.fullscreen = False
         self.maxStack = 16+self.GODMODE*984
-        self.viewDistance = 17+self.GODMODE*50
+        self.viewDistance = 19
         self.basePlayerReach = tileSize*2
         self.maxStamina = 100
         self.darkeningtime = 60
@@ -35,8 +37,8 @@ BLACK = (0, 0, 0)
 GREY = (25, 25, 25)
 bord = 5
 cols = [(32, 29, 209), (34, 78, 199), (46, 137, 217), (37, 175, 217), (56, 224, 213), (54, 214, 102), (44, 232, 23), (97, 217, 37), (199, 217, 37), (217, 193, 37), (217, 151, 37), (217, 82, 28), (219, 49, 11)]
-displayHalfH = game_settings.displayHeight/2
-displayHalfW = game_settings.displayWidth/2
+game_settings.displayHalfHeight = game_settings.displayHeight/2
+game_settings.displayHalfWidth = game_settings.displayWidth/2
 alph = 0
 tileAmount = 0
 pygame.init()
@@ -101,9 +103,9 @@ craftingSelectsDict = {1: "materials",
                        "special" : 3}
 class CRAFTING_SETTINGS():
     def __init__(self):
-        self.ankInvX = displayHalfW-inventoryImg.get_width()/2+320
+        self.ankInvX = game_settings.displayHalfWidth-inventoryImg.get_width()/2+320
         self.invX = self.ankInvX
-        self.invY = displayHalfH-inventoryImg.get_height()/2-100
+        self.invY = game_settings.displayHalfHeight-inventoryImg.get_height()/2-100
         self.craftIndex = ""
         self.craftingAnimation = 0
         
@@ -127,9 +129,13 @@ class BUILDING_SETTINGS():
 building_settings = BUILDING_SETTINGS()
 
 # testing
-biomes = ["plains",
+biomes = [
+          "forest",
           "plains",
-          "plains"]
+          "river",
+          "forest",
+          "plains",
+          "river"]
 
 # ACTUAL GAME
 """
@@ -140,8 +146,8 @@ biomes = ["volcano",
           "forest",
           "plains"]
           """
-biomeSize = 20 # 50 #HAS TO BE ABOVE 20
-worldWidth = 38 # 50 #HAS TO BE ABOVE 40
+biomeSize = 20
+worldWidth = 50
 while biomeSize%4:
     biomeSize+=1
 biomeSectionSize = 4
@@ -227,6 +233,7 @@ class TILE():
         self.buildSprite = ""
         self.i = ""
         self.darkness = 0
+        self.canwalk = True
 
         accY = y+worldHalfH
         self.biome = biomes[int(accY/biomeSize)]
@@ -240,7 +247,6 @@ class TILE():
                         
                     self.biome = biomes[biomeIndex-1]
         
-        self.canwalk = True
 
         #VOLCANO
         if self.biome == "volcano":
@@ -270,7 +276,12 @@ class TILE():
         if self.biome == "river":
             if tile > 27:
                 self.tile = "sand"
-            elif tile > 12:
+                if specTile > 0 and not random.randint(0, 3):
+                    self.building = "tree"
+                    self.canwalk = False
+                    self.health = 100
+                    self.col = (122, 62, 10)
+            elif tile > 5:
                 self.tile = "shore"
             else:
                 self.tile = "water"
@@ -280,6 +291,11 @@ class TILE():
                 self.tile = "stone"
             elif tile > -25:
                 self.tile = "sand"
+                if specTile > 0 and not random.randint(0, 3):
+                    self.building = "tree"
+                    self.canwalk = False
+                    self.health = 100
+                    self.col = (122, 62, 10)
             else:
                 self.tile = "shore"
         self.drops = []
@@ -348,6 +364,7 @@ class TILE():
         if self.tile == "water":
             self.canwalk = False
         if self.building != "":
+            self.buildingMinimapColour = buildings_minimap_dictionary[self.building]
             if self.building == "tree":
                 self.tag = "wood"
                 self.buildSprite = []
@@ -363,7 +380,7 @@ class TILE():
         if self.tile == "water" or self.tile == "shore":
             self.waveSprite = []
             self.waveChance = random.randint(0, 1)
-        self.pregameColour = col_dict[self.tile]
+        self.tileMinimapColour = minimap_colours_dictionary[self.tile]
 
         if game_settings.borderedTextures:
             self.sprite = pygame.transform.scale(pygame.image.load("sprites/bordered blocks/"+self.tile+"/"+str(random.randint(1,3))+".png").convert_alpha(), (self.size, self.size))
@@ -371,17 +388,31 @@ class TILE():
             self.sprite = pygame.transform.scale(pygame.image.load("sprites/unbordered blocks/"+self.tile+"/"+str(random.randint(1,3))+".png").convert_alpha(), (self.size, self.size))
 tiles = []
 
-col_dict = {"lava" : (230, 93, 30),
-         "magma" : (145, 70, 0),
-         "hardened rock" : (59, 59, 59),
-         "ice" : (80, 222, 217),
-         "snow" : (245, 245, 245),
-         "stone" : (110, 110, 110),
-         "grass" : (60, 163, 31),
-         "dry grass" : (189, 142, 13),
-         "sand" : (240, 218, 19),
-         "shore" : (35, 102, 204),
-         "water" : (12, 20, 156)}
+minimap_colours_dictionary = {"lava" : (230, 93, 30),
+                                "magma" : (145, 70, 0),
+                                "hardened rock" : (59, 59, 59),
+                                "ice" : (80, 222, 217),
+                                "snow" : (245, 245, 245),
+                                "stone" : (110, 110, 110),
+                                "grass" : (60, 163, 31),
+                                "dry grass" : (189, 142, 13),
+                                "sand" : (240, 218, 19),
+                                "shore" : (35, 102, 204),
+                                "water" : (12, 20, 156)}
+
+buildings_minimap_dictionary = {"tree" : (50, 153, 21),
+                                "pebble" : (150, 150, 150),
+                                "grass" : (50, 153, 21),
+                                "hay" : (179, 132, 3),
+                                "wood building" : (143, 93, 31),
+                                "stone building" : (80, 80, 80),
+                                "hay building" : (169, 122, 3),
+                                "wood floor" : (163, 113, 51),
+                                "stone floor" : (100, 100, 100),
+                                "hay floor" : (189, 142, 23)
+
+
+}
 
 class DROPPED_ITEM():
     def __init__(self, x, y, item, enhancements, durability):
@@ -418,9 +449,10 @@ mouse = MOUSE()
 
 class PLAYER():
     def __init__(self, local_tiles):
+        self.structure_spacing = 10
         self.i = "player"
         self.x = 0
-        self.y = ((worldHeight-30)*local_tiles[0].size)/2+displayHalfH
+        self.y = ((worldHeight-30)*local_tiles[0].size)/2+game_settings.displayHalfHeight
         self.tile = int((self.y*-1+worldHAccHeight)/tileSize)+int((self.x+worldHAccWidth)/tileSize)*worldHeight
         self.height = 64
         self.width = self.height/2
@@ -515,8 +547,8 @@ arm = [PLAYER_ARM(), PLAYER_ARM()]
 
 class CAMERA():
     def __init__(self):
-        self.x = displayHalfW
-        self.y = (worldHeight*tileSize)/2-displayHalfH
+        self.x = game_settings.displayHalfWidth
+        self.y = (worldHeight*tileSize)/2-game_settings.displayHalfHeight
         if game_settings.GODMODE:
             self.smoothness = 1
         else:

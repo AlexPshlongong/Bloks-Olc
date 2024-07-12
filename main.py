@@ -5,6 +5,12 @@ from setup import *
 def TO_DO():
     # CURRENTLY WORKING ON 
     """
+    fix particles from damaging buildings
+    any item into hotbar
+    split 1 stone to be in hotbar, rest stones in inventory
+
+    structure spacing so structures don't spawn in structures
+
     compatibility with other window resolutions (crafting still bugged)
     dropping items
     horizontal loop (generate world, flip all of it and stick it on the end, then allow player to loop)
@@ -13,10 +19,14 @@ def TO_DO():
     """
     # little things
     """
+    terraformer in godmode but actually fun large area and don't do just "change only this tile" change a circle around the mouse
+    smoother biome transition -> defo i think but idk how to do just yet
     stone buildings a lot darker or make dark varient
+    SHIFT CLICK IN INVENTORY AND HOTBAR (this is a MUST with chests)
     wall sprites darker (definitely outline, idk for everything else)
     optimise displaying tiles (somehow)
     saving and loading (encoding too maybe, to save storage and prevent cheating)
+    breaking buildings proper particles and not just black
     minimap
     chunks (good luck mate)
     "can't go to next biome without doing / killing so and so"
@@ -24,6 +34,7 @@ def TO_DO():
     """
     # CONTENT
     """
+    chests 
     animals
     fishing
     bosses
@@ -40,13 +51,11 @@ def TO_DO():
 
 # PLAYER
 
-
-
 def move_player(ks):
-    player.tile = int((player.y+worldHAccHeight)/tileSize)+int((player.x+worldHAccWidth)/tileSize)*worldHeight
+    player.tile = min(len(tiles)-1, int((player.y+worldHAccHeight)/tileSize)+int((player.x+worldHAccWidth)/tileSize)*worldHeight)
         
-    playerX_1 = int((player.y+worldHAccHeight)/tileSize)+int((player.x-player.fWidth+worldHAccWidth)/tileSize)*worldHeight
-    playerX_2 = int((player.y+worldHAccHeight)/tileSize)+int((player.x+player.fWidth+worldHAccWidth)/tileSize)*worldHeight
+    playerX_1 = min(len(tiles)-1, int((player.y+worldHAccHeight)/tileSize)+int((player.x-player.fWidth+worldHAccWidth)/tileSize)*worldHeight)
+    playerX_2 = min(len(tiles)-1, int((player.y+worldHAccHeight)/tileSize)+int((player.x+player.fWidth+worldHAccWidth)/tileSize)*worldHeight)
     
     sprintX = player.sprintMultiplier
     decSpeed = player.decSpeed
@@ -105,6 +114,10 @@ def move_player(ks):
                 
     player.xCol_1 = int((player.y+worldHAccHeight)/tileSize)+int((player.x-player.fWidth+worldHAccWidth)/tileSize)*worldHeight
     player.xCol_2 = int((player.y+worldHAccHeight)/tileSize)+int((player.x+player.fWidth+worldHAccWidth)/tileSize)*worldHeight   
+
+    #stops oyu from crashing the game with an index tile out of range
+    player.x = min(worldHAccWidth, max(-worldHAccWidth, player.x))
+    player.y = min(worldHAccHeight, max(-worldHAccHeight, player.y))
 def check_player_reach():
     player.reach = game_settings.basePlayerReach
     for enhancement in player.hotbar[0].enhancements:
@@ -266,7 +279,6 @@ def place_building(tile, building_material, building_type):
         tiles[tile].canwalk = False
     if building_type == "floor":
         tiles[tile].canwalk = True
-    tiles[tile].col = (122, 62, 10)
     tiles[tile].building = building_type
     sprite = pygame.image.load("sprites/buildings/"+building_type+"/"+building_material+"/.png")
     tiles[tile].buildSprite = pygame.transform.scale_by(sprite, (tileSize/16))
@@ -275,6 +287,23 @@ def place_building(tile, building_material, building_type):
     tiles[tile].health = buildingHealths[building_material+" "+building_type]
     tiles[tile].tag = buildingTags[building_material]
     tiles[tile].material = building_material
+    tiles[tile].col = BLACK
+    if building_type == "wall" or building_type == "door":
+        tiles[tile].buildingMinimapColour = buildings_minimap_dictionary[building_material+" building"]
+    elif building_type == "floor":
+        tiles[tile].buildingMinimapColour = buildings_minimap_dictionary[building_material+" floor"]
+    else:
+        tiles[tile].buildingMinimapColour = buildings_minimap_dictionary[building_type]
+def destroy_building(index):
+    tiles[index].health = 0 
+    tiles[index].buildingSprite = ""
+    tiles[index].tag = ""
+    tiles[index].i = ""
+    tiles[index].building = ""
+    if tiles[index].tile != "water":
+        tiles[index].canwalk = True
+    else:
+        tiles[index].canwalk = False
 def player_deenergize(points):
     player.hunger  -= points/5
     player.hydration  -= points/2
@@ -332,18 +361,9 @@ def use_item():
                                             for k in range(len(player.hotbar[0].enhancements)):
                                                 if player.hotbar[0].enhancements[k] == "damage":
                                                     tiles[mouse.tile].health -= item[2]/3+game_settings.GODMODE*10000
-                                            create_particles(mouse.x, mouse.y, tiles[mouse.tile].col[0], tiles[mouse.tile].col[1], tiles[mouse.tile].col[2], 20, 20)
-                        
+                                            create_particles(tiles[mouse.tile].x-camera.x, tiles[mouse.tile].y-camera.y, tiles[mouse.tile].col[0], tiles[mouse.tile].col[1], tiles[mouse.tile].col[2], 20, 20)
+                                            
                             if tiles[mouse.tile].health <= 0:
-                                tiles[mouse.tile].health = 0 
-                                tiles[mouse.tile].buildingSprite = ""
-                                tiles[mouse.tile].tag = ""
-                                tiles[mouse.tile].i = ""
-                                if tiles[mouse.tile] != "water":
-                                    tiles[mouse.tile].canwalk = True
-                                else:
-                                    tiles[mouse.tile].canwalk = False
-                                
                                 if tiles[mouse.tile].building == "floor" or tiles[mouse.tile].building == "door" or tiles[mouse.tile].building == "wall":
                                     for k in range(0, buildingResources[tiles[mouse.tile].building]):
                                         droppedItems.append(DROPPED_ITEM(tiles[mouse.tile].x, tiles[mouse.tile].y, tiles[mouse.tile].material, [], False))
@@ -359,7 +379,7 @@ def use_item():
                                                 
                                         for k in range(int(random.randint(int(luckMin), int(luckMax))/100)):
                                             droppedItems.append(DROPPED_ITEM(tiles[mouse.tile].x, tiles[mouse.tile].y, drop[0], [], False))
-                                tiles[mouse.tile].building = ""
+                                destroy_building(mouse.tile)
 
                             if player.hotbar[0].item != "stone":
                                 for enhancement in player.hotbar[0].enhancements:
@@ -394,7 +414,7 @@ def display_held_item():
 def handle_building():
     if player.hotbar[0].item == "wood hammer":
         if mouse.right:
-            display_building()
+            display_building_panel()
         if len(building_settings.buildSelected):
             if mouse.release:
                 building_settings.sprite = pygame.transform.scale(pygame.image.load("sprites/buildings/"+building_settings.buildSelected[1]+"/"+building_settings.buildSelected[0]+"/.png"), (tileSize, tileSize))
@@ -424,24 +444,24 @@ def handle_building():
 # MOUSE
 
 def mouseHBCheck():
-    if (mouse.x-(displayHalfW))**2+(mouse.y-(game_settings.displayHeight-150))**2 < 55**2:
+    if (mouse.x-(game_settings.displayHalfWidth))**2+(mouse.y-(game_settings.displayHeight-150))**2 < 55**2:
         mouse.selectedHBSlot = 0
     else:
-        if (mouse.y-(game_settings.displayHeight-150))*0.485 > (mouse.x-displayHalfW):
-            if (mouse.y-(game_settings.displayHeight-150))*-0.485 < (mouse.x-displayHalfW):
+        if (mouse.y-(game_settings.displayHeight-150))*0.485 > (mouse.x-game_settings.displayHalfWidth):
+            if (mouse.y-(game_settings.displayHeight-150))*-0.485 < (mouse.x-game_settings.displayHalfWidth):
                 mouse.selectedHBSlot = 6+player.HBcycle
-            elif (mouse.y-(game_settings.displayHeight-150)) > (mouse.x-displayHalfW)*-0.485:
+            elif (mouse.y-(game_settings.displayHeight-150)) > (mouse.x-game_settings.displayHalfWidth)*-0.485:
                 mouse.selectedHBSlot = 5+player.HBcycle
-            elif (mouse.y-(game_settings.displayHeight-150)) > (mouse.x-displayHalfW)*0.485:
+            elif (mouse.y-(game_settings.displayHeight-150)) > (mouse.x-game_settings.displayHalfWidth)*0.485:
                 mouse.selectedHBSlot = 4+player.HBcycle
             else:
                 mouse.selectedHBSlot = 3+player.HBcycle
         else:
-            if (mouse.y-(game_settings.displayHeight-150))*-0.485 > (mouse.x-displayHalfW):
+            if (mouse.y-(game_settings.displayHeight-150))*-0.485 > (mouse.x-game_settings.displayHalfWidth):
                 mouse.selectedHBSlot = 2+player.HBcycle
-            elif (mouse.y-(game_settings.displayHeight-150)) < (mouse.x-displayHalfW)*-0.485:
+            elif (mouse.y-(game_settings.displayHeight-150)) < (mouse.x-game_settings.displayHalfWidth)*-0.485:
                 mouse.selectedHBSlot = 1+player.HBcycle
-            elif (mouse.y-(game_settings.displayHeight-150)) < (mouse.x-displayHalfW)*0.485:
+            elif (mouse.y-(game_settings.displayHeight-150)) < (mouse.x-game_settings.displayHalfWidth)*0.485:
                 mouse.selectedHBSlot = 8+player.HBcycle
             else:
                 mouse.selectedHBSlot = 7+player.HBcycle
@@ -456,8 +476,8 @@ def set_mouse_vars():
     if game_settings.menu != "pregame":
         mouse.tile = int((mouse.y-camera.y+worldHAccHeight)/tileSize)+int((mouse.x-camera.x+worldHAccWidth)/tileSize)*worldHeight
 def inventory_mouse():
-    if displayHalfW-inventoryImg.get_width()/2 < mouse.x < displayHalfW+inventoryImg.get_width()/2 and displayHalfH-inventoryImg.get_height()/2-100 < mouse.y < displayHalfH+inventoryImg.get_height()/2-100:
-        mouse.selectedSlot = abs(int((displayHalfW-inventoryImg.get_width()/2-mouse.x)/108))+abs(int((displayHalfH-inventoryImg.get_height()/2-100-mouse.y)/108))*5
+    if game_settings.displayHalfWidth-inventoryImg.get_width()/2 < mouse.x < game_settings.displayHalfWidth+inventoryImg.get_width()/2 and game_settings.displayHalfHeight-inventoryImg.get_height()/2-100 < mouse.y < game_settings.displayHalfHeight+inventoryImg.get_height()/2-100:
+        mouse.selectedSlot = abs(int((game_settings.displayHalfWidth-inventoryImg.get_width()/2-mouse.x)/108))+abs(int((game_settings.displayHalfHeight-inventoryImg.get_height()/2-100-mouse.y)/108))*5
         if mouse.click:
             if mouse.offInvBeat:
                 if player.selectedHBSlot == "":
@@ -479,14 +499,14 @@ def inventory_mouse():
                     player.hotbar[player.selectedHBSlot] = player.inventory[mouse.selectedSlot]
                     player.inventory[mouse.selectedSlot] = temp
                     player.selectedHBSlot = ""
-                mouse.offInvBeat     = False
+                mouse.offInvBeat = False
             else:
                 player.selectedSlot = mouse.selectedSlot
                 mouse.offInvBeat = True     
     else:
         mouse.selectedSlot = ""
 def inventory_mouse_hotbar():
-    if (mouse.x-(displayHalfW))**2+(mouse.y-(game_settings.displayHeight-150))**2 < 150**2:
+    if (mouse.x-(game_settings.displayHalfWidth))**2+(mouse.y-(game_settings.displayHeight-150))**2 < 150**2:
         mouseHBCheck()
         if mouse.click:
             if mouse.offInvBeat:
@@ -507,6 +527,18 @@ def inventory_mouse_hotbar():
                         temp = player.inventory[player.selectedSlot]
                         player.inventory[player.selectedSlot] = player.hotbar[Mslot]
                         player.hotbar[Mslot] = temp
+                    if player.inventory[player.selectedSlot].item == "stone":
+                        if player.hotbar[Mslot].item == "":
+                            if player.inventory[player.selectedSlot].amount > 1:
+                                temp = player.inventory[player.selectedSlot]
+                                temp.amount -= 1
+                                player.inventory[player.selectedSlot] = player.hotbar[Mslot]
+                                player.hotbar[Mslot] = temp
+                        elif player.inventory[player.selectedSlot].amount == 1:
+                            temp = player.hotbar[Pslot]
+                            player.hotbar[Pslot] = player.hotbar[Mslot]
+                            player.hotbar[Mslot] = temp
+
                     player.selectedSlot = ""
                 mouse.offInvBeat = False
             else:
@@ -548,14 +580,14 @@ def write_text(text, x, y, size, align, alpha):
             letterSprites[letterIndex].set_alpha(alpha)
             window.blit(pygame.transform.scale(letterSprites[letterIndex], (size, size)), (x+i*size*0.8, y))
 def repos_camera():
-    camera.x-=((camera.x-displayHalfW)-(player.x*-1))/camera.smoothness
-    camera.y-=((camera.y-displayHalfH)-(player.y*-1))/camera.smoothness
+    camera.x-=((camera.x-game_settings.displayHalfWidth)-(player.x*-1))/camera.smoothness
+    camera.y-=((camera.y-game_settings.displayHalfHeight)-(player.y*-1))/camera.smoothness
     
     camera.x=int(camera.x*2)/2
     camera.y=int(camera.y*2)/2
 
-    if camera.x < worldWidth*tileSize/-2+game_settings.displayWidth+tileSize/2:
-        camera.x = worldWidth*tileSize/-2+game_settings.displayWidth+tileSize/2
+    if camera.x < worldWidth*tileSize/-2+game_settings.displayWidth:
+        camera.x = worldWidth*tileSize/-2+game_settings.displayWidth
     if camera.x > worldWidth*tileSize/2:
         camera.x = worldWidth*tileSize/2
         
@@ -572,12 +604,14 @@ def rearrange_obj(objs):
     curTile = int((camera.y*-1+worldHAccHeight)/tileSize)+int((camera.x*-1+worldHAccWidth)/tileSize)*worldHeight
     for i in range(displayTWidth):
         for k in range(displayTHeight):
+            if curTile >= len(tiles):
+                break
             if tiles[curTile].building != "":
                 objs.append(tiles[curTile])
-            if curTile < worldSize-1:
-                curTile += 1
-        if curTile < worldSize-(worldHeight):
-            curTile += worldHeight-displayTHeight
+            curTile += 1
+        if curTile >= len(tiles):
+            break
+        curTile += worldHeight-displayTHeight
                         
     for drops in droppedItems:
         objs.append(drops)
@@ -725,25 +759,6 @@ def customise_world():
         write_text("play", 50, 550, 150, False, 150)
     if tiles != []:
         display_preview_world()
-def generate_world():
-    window.fill(BLACK)
-    global tiles, tileAmount
-    write_text("generating world...", displayHalfW, displayHalfH-125, 100, True, 255)
-    write_text("this might take a while", displayHalfW, displayHalfH, 100, True, 255)
-    pygame.display.update()
-    noise1 = PerlinNoise(octaves=int(worldWidth/20)+2, seed=random.randint(1,1000))
-    tiles = []
-    for x in range(worldWidth):
-        for y in range(worldHeight):
-            if y > worldHeight-20:
-                tiles.append(TILE(x-worldHalfW, y-worldHalfH, (noise1([x/worldWidth, y/worldWidth])*100-abs((worldHeight-20)-y)*3), (noise1([(x+100)/worldWidth, y/worldWidth])*100) ))
-            else:
-                if y < biomeSize:
-                    tiles.append(TILE(x-worldHalfW, y-worldHalfH, (noise1([x/worldWidth, y/worldWidth])*100)+abs(y-biomeSize)*2, (noise1([(x+100)/worldWidth, y/worldWidth])*100) ))
-                else:
-                    tiles.append(TILE(x-worldHalfW, y-worldHalfH, (noise1([x/worldWidth, y/worldWidth])*100), (noise1([(x+100)/worldWidth, y/worldWidth])*100) ))
-    tileAmount = len(tiles)
-    tiles = wave_sprites(tiles)
 def start_game():
     game_settings.menu = "game"
     global tiles, player, camera
@@ -806,6 +821,8 @@ def display_tiles(animation):
     curTile = int((camera.y*-1+worldHAccHeight)/tileSize)+int((camera.x*-1+worldHAccWidth)/tileSize)*worldHeight
     for i in range(displayTWidth):
         for k in range(displayTHeight):
+            if curTile >= len(tiles):
+                return
             if tiles[curTile].covered < 255:
                 if tiles[curTile].building != "floor":
                     window.blit(tiles[curTile].sprite, (tiles[curTile].x+camera.x, tiles[curTile].y+camera.y))
@@ -814,47 +831,39 @@ def display_tiles(animation):
                             if tiles[curTile].waveSprite[animation] != "":
                                 if tiles[curTile].waveChance:
                                     window.blit(tiles[curTile].waveSprite[animation], (tiles[curTile].x+camera.x, tiles[curTile].y+camera.y))
-
-            if curTile < worldSize-1:
-                curTile += 1
-        if curTile < worldSize-(worldHeight):
-            curTile += worldHeight-displayTHeight
+            
+            curTile += 1
+        curTile += worldHeight-displayTHeight
 def display_covered_tiles():
     curTile = int((camera.y*-1+worldHAccHeight)/tileSize)+int((camera.x*-1+worldHAccWidth)/tileSize)*worldHeight
     for i in range(displayTWidth):
         for k in range(displayTHeight):
+            if curTile >= worldSize:
+                return
             if tiles[curTile].covered > 0:
                 coveredTile.set_alpha(tiles[curTile].covered)
                 window.blit(coveredTile, (tiles[curTile].x+camera.x, tiles[curTile].y+camera.y))
                 
-            if curTile < worldSize-1:
-                curTile += 1
-        if curTile < worldSize-(worldHeight):
-            curTile += worldHeight-displayTHeight
+            curTile += 1
+        curTile += worldHeight-displayTHeight
 def uncover_tiles():
     curTile = int((player.y+worldHAccHeight-tileSize*(game_settings.viewDistance/2))/tileSize)+int((player.x+worldHAccWidth-tileSize*(game_settings.viewDistance/2))/tileSize)*worldHeight
     for i in range(game_settings.viewDistance):
         for j in range(game_settings.viewDistance):
-            alphaMax = game_settings.viewDistance
-            if i < game_settings.viewDistance/2:
-                alphaMax -= i
-            else:
-                alphaMax -= game_settings.viewDistance-i
-            if j < game_settings.viewDistance/2:
-                alphaMax -= j
-            else:
-                alphaMax -= game_settings.viewDistance-j
-            alphaMax*=25
+            alphaMax = abs(i-game_settings.viewDistance/2)**2+abs(j-game_settings.viewDistance/2)**2
+            alphaMax*=255/game_settings.viewDistance
                 
-            if (0 <= curTile < worldSize) and abs(tiles[curTile].y-player.y) < game_settings.viewDistance*tileSize:
+            if (0 <= curTile < worldSize) and abs(player.y-tiles[curTile].y) <= game_settings.viewDistance*tileSize:
                 if tiles[curTile].covered > alphaMax:
-                    tiles[curTile].covered -=10
+                    tiles[curTile].covered -= 30
                     if tiles[curTile].covered < 100:
                         tiles[curTile].covered = 0
-            if curTile < worldSize-1:
-                curTile += 1
-        if curTile < worldSize-(game_settings.viewDistance):
-            curTile += worldHeight-game_settings.viewDistance
+            curTile += 1
+            if curTile > worldSize:
+                return
+        curTile += worldHeight-game_settings.viewDistance
+        if curTile > worldSize:
+            return
 def display_obj():
     for obj in objects:
         if tileSize*-2 < obj.x+camera.x < game_settings.displayWidth+tileSize and tileSize*-2 < obj.y+camera.y < game_settings.displayHeight+tileSize*2:
@@ -864,6 +873,11 @@ def display_obj():
                         obj.buildSprite[int(obj.health/10)].set_alpha(150)
                     else:
                         obj.buildSprite[int(obj.health/10)].set_alpha(255)
+                elif obj.building == "hay":
+                    if obj.x < player.x < obj.x+tileSize and obj.y-obj.buildSprite.get_height()+tileSize*2 < player.y < obj.y+tileSize:
+                        obj.buildSprite.set_alpha(150)
+                    else:
+                        obj.buildSprite.set_alpha(255)
                 else:
                     if obj.x < player.x < obj.x+tileSize and obj.y-obj.buildSprite.get_height()+tileSize < player.y < obj.y:
                         obj.buildSprite.set_alpha(150)
@@ -952,12 +966,48 @@ def generate_structure(structure, x, y, ruinedness):
                 # don't place 100% tiles to give a ruined effect
                 if random.randint(1, 100) > ruinedness:
                     place_building((x+j)*worldHeight+(y+i), what_building[0], what_building[1])
+def generate_world():
+    window.fill(BLACK)
+    global tiles, tileAmount
+    write_text("generating world...", game_settings.displayHalfWidth, game_settings.displayHalfHeight-125, 100, True, 255)
+    write_text("this might take a while", game_settings.displayHalfWidth, game_settings.displayHalfHeight, 100, True, 255)
+    pygame.display.update()
+    noise1 = PerlinNoise(octaves=int(worldWidth/20)+2, seed=random.randint(1,1000))
+    tiles = []
+    for x in range(worldWidth):
+        for y in range(worldHeight):
+            if y > worldHeight-20:
+                tiles.append(TILE(x-worldHalfW, y-worldHalfH, (noise1([x/worldWidth, y/worldWidth])*100-abs((worldHeight-20)-y)*3), (noise1([(x+100)/worldWidth, y/worldWidth])*100) ))
+            else:
+                if y < biomeSize:
+                    tiles.append(TILE(x-worldHalfW, y-worldHalfH, (noise1([x/worldWidth, y/worldWidth])*100)+abs(y-biomeSize)*2, (noise1([(x+100)/worldWidth, y/worldWidth])*100) ))
+                else:
+                    tiles.append(TILE(x-worldHalfW, y-worldHalfH, (noise1([x/worldWidth, y/worldWidth])*100), (noise1([(x+100)/worldWidth, y/worldWidth])*100) ))
+    tileAmount = len(tiles)
+    tiles = wave_sprites(tiles)
+    post_processing_generation()
+def post_processing_generation():
+    global tiles
+    for i in range(worldSize-1):
+        if tiles[i].tile == "grass":
+            needForProcessing = False
+            indicies = [i-1, i+1, i-worldHeight, i+worldHeight]
+            for index in indicies:
+                index = min(worldSize-1, index)
+                if tiles[index].tile == "water" or tiles[index].tile == "shore":
+                    tiles[i].tile = "sand"
+                    destroy_building(i)
+            
+            if game_settings.borderedTextures:
+                tiles[i].sprite = pygame.transform.scale(pygame.image.load("sprites/bordered blocks/"+tiles[i].tile+"/"+str(random.randint(1,3))+".png").convert_alpha(), (tileSize, tileSize))
+            else:
+                tiles[i].sprite = pygame.transform.scale(pygame.image.load("sprites/unbordered blocks/"+tiles[i].tile+"/"+str(random.randint(1,3))+".png").convert_alpha(), (tileSize, tileSize))
 
 # DISPLAY MISC
 
 def display_inventory():
-    invX = displayHalfW-inventoryImg.get_width()/2
-    invY = displayHalfH-inventoryImg.get_height()/2-100
+    invX = game_settings.displayHalfWidth-inventoryImg.get_width()/2
+    invY = game_settings.displayHalfHeight-inventoryImg.get_height()/2-100
     window.blit(inventoryImg, (invX, invY))
     
     for i in range(len(player.inventory)):
@@ -1002,7 +1052,6 @@ def display_particles():
     for i in range(len(delIndicies)):
         del particles[delIndicies[i]]
 def display_crafting():
-    global displayHalfW, displayHalfH
     # animation
     if crafting_settings.craftingAnimation:
        crafting_settings.craftingAnimation-=1 
@@ -1011,7 +1060,7 @@ def display_crafting():
             crafting_settings.invX+=50
     elif crafting_settings.invX > crafting_settings.ankInvX-600:
         crafting_settings.invX-=50
-    crafting_settings.invY = displayHalfH-inventoryImg.get_height()/2-100
+    crafting_settings.invY = game_settings.displayHalfHeight-inventoryImg.get_height()/2-100
     
     window.blit(inventoryImg, (crafting_settings.invX, crafting_settings.invY))
     window.blit(craftingSelection, (crafting_settings.invX-150, crafting_settings.invY))
@@ -1023,9 +1072,9 @@ def display_crafting():
            
     if mouse.click:
         if not (crafting_settings.invX-150 < mouse.x < crafting_settings.invX-150+craftingSelection.get_width() and crafting_settings.invY < mouse.y < crafting_settings.invY+craftingSelection.get_height()):
-            relX = crafting_settings.invX-displayHalfW-inventoryImg.get_width()/2+mouse.x
+            relX = crafting_settings.invX-game_settings.displayHalfWidth-inventoryImg.get_width()/2+mouse.x
             relY = mouse.y-crafting_settings.invY
-            if crafting_settings.invX < mouse.x < crafting_settings.invX+inventoryImg.get_width() and displayHalfH-inventoryImg.get_height()/2-100 < mouse.y < displayHalfH+inventoryImg.get_height()/2-100:
+            if crafting_settings.invX < mouse.x < crafting_settings.invX+inventoryImg.get_width() and game_settings.displayHalfHeight-inventoryImg.get_height()/2-100 < mouse.y < game_settings.displayHalfHeight+inventoryImg.get_height()/2-100:
                 ind = int((mouse.x-crafting_settings.invX)/108)+int((mouse.y-crafting_settings.invY)/108)*5
                 if ind < len(crafts[selIndex]):
                     game_settings.crafting = crafts[selIndex][ind].item.strip()
@@ -1038,8 +1087,8 @@ def display_crafting():
         else:
             game_settings.crafting = ""
             
-    pygame.draw.rect(window, (107, 107, 107), (crafting_settings.invX+inventoryImg.get_width()+10, crafting_settings.invY, displayHalfW-crafting_settings.invX-200+110, inventoryImg.get_height()))
-    pygame.draw.rect(window, (158, 158, 158), (crafting_settings.invX+inventoryImg.get_width()+15, crafting_settings.invY+5, displayHalfW-crafting_settings.invX-210+110, inventoryImg.get_height()-10))
+    pygame.draw.rect(window, (107, 107, 107), (crafting_settings.invX+inventoryImg.get_width()+10, crafting_settings.invY, game_settings.displayHalfWidth-crafting_settings.invX-200+110, inventoryImg.get_height()))
+    pygame.draw.rect(window, (158, 158, 158), (crafting_settings.invX+inventoryImg.get_width()+15, crafting_settings.invY+5, game_settings.displayHalfWidth-crafting_settings.invX-210+110, inventoryImg.get_height()-10))
     window.blit(selectedCrafting, (crafting_settings.invX-150-6, crafting_settings.invY+selIndex*108-6))
     
     for i in range(len(crafts[selIndex])):
@@ -1072,7 +1121,7 @@ def display_crafting():
             write_text("craft", crafting_settings.invX+inventoryImg.get_width()+craftButton.get_width()/2, crafting_settings.invY+340, 40-crafting_settings.craftingAnimation, True, 255)
         
     if mouse.click and selIndex != "" and crafting_settings.craftIndex != "" and not (crafting_settings.invX-150 < mouse.x < crafting_settings.invX-150+craftingSelection.get_width() and crafting_settings.invY < mouse.y < crafting_settings.invY+craftingSelection.get_height()):
-        relX = crafting_settings.invX-displayHalfW-inventoryImg.get_width()/2+mouse.x
+        relX = crafting_settings.invX-game_settings.displayHalfWidth-inventoryImg.get_width()/2+mouse.x
         relY = mouse.y-crafting_settings.invY
         if 108 < relX < 395 and 312 < relY < 406:
             RN = crafts[selIndex][crafting_settings.craftIndex].itemIn
@@ -1084,10 +1133,10 @@ def display_hotbar():
     else:
         ypos = game_settings.displayHeight-50
         
-    if (mouse.x-(displayHalfW))**2+(mouse.y-(ypos))**2 > 150**2 or game_settings.menu == "inventory":
-        window.blit(hotbarImgTR, (displayHalfW-150, ypos-150))
+    if (mouse.x-(game_settings.displayHalfWidth))**2+(mouse.y-(ypos))**2 > 150**2 or game_settings.menu == "inventory":
+        window.blit(hotbarImgTR, (game_settings.displayHalfWidth-150, ypos-150))
     else:
-        window.blit(hotbarImg, (displayHalfW-150, ypos-150))
+        window.blit(hotbarImg, (game_settings.displayHalfWidth-150, ypos-150))
         
     if game_settings.menu == "inventory":
         if mouse.selectedHBSlot != "":
@@ -1097,7 +1146,7 @@ def display_hotbar():
                     slot+=8
             else:
                 slot = 0
-            window.blit(hotbarMouseImg[slot], (displayHalfW-125, ypos-125))
+            window.blit(hotbarMouseImg[slot], (game_settings.displayHalfWidth-125, ypos-125))
         if player.selectedHBSlot != "" and mouse.offInvBeat:
             if player.selectedHBSlot:
                 slot = player.selectedHBSlot-player.HBcycle
@@ -1105,11 +1154,11 @@ def display_hotbar():
                     slot+=8
             else:
                 slot = 0
-            window.blit(hotbarSelectedImg[slot], (displayHalfW-125, ypos-125))
+            window.blit(hotbarSelectedImg[slot], (game_settings.displayHalfWidth-125, ypos-125))
         
     for i in range(len(player.hotbar)):
         if i:
-            x = displayHalfW-25/2+(math.cos(math.radians(i*45))*130)
+            x = game_settings.displayHalfWidth-25/2+(math.cos(math.radians(i*45))*130)
             y = ypos-25/2-(math.sin(math.radians(i*45))*130)
             text = i+player.HBcycle
             if text > 8:
@@ -1119,13 +1168,13 @@ def display_hotbar():
     for i in range(len(player.hotbar)):
         if player.hotbar[i].sprite != "":
             if i == 0:
-                window.blit(player.hotbar[i].sprite, (displayHalfW-32, ypos-32))
+                window.blit(player.hotbar[i].sprite, (game_settings.displayHalfWidth-32, ypos-32))
                 if player.hotbar[i].durability:
-                    write_text(str(player.hotbar[i].durability)+"%", displayHalfW-32, ypos-32, 25, False, 255)
+                    write_text(str(player.hotbar[i].durability)+"%", game_settings.displayHalfWidth-32, ypos-32, 25, False, 255)
                 for j in range(len(player.hotbar[i].enhancements)):
-                    window.blit(enhancementSprites[player.hotbar[i].enhancements[j]], (displayHalfW+3-40+j*20, ypos+30))
+                    window.blit(enhancementSprites[player.hotbar[i].enhancements[j]], (game_settings.displayHalfWidth+3-40+j*20, ypos+30))
             else:
-                x = displayHalfW-32+(math.cos(math.radians((i-player.HBcycle)*45))*100)
+                x = game_settings.displayHalfWidth-32+(math.cos(math.radians((i-player.HBcycle)*45))*100)
                 y = ypos-32-(math.sin(math.radians((i-player.HBcycle)*45))*100)
                 
                 window.blit(player.hotbar[i].sprite, (x, y))
@@ -1138,8 +1187,23 @@ def display_preview_world():
         for y in range(worldHeight):
             index = x*worldHeight+y
             if index < len(tiles):  
-                pygame.draw.rect(window, tiles[index].pregameColour, (1200+x*3, y*3, 3, 3))
-def display_building():
+                pygame.draw.rect(window, tiles[index].minimapColour, (1200+x*3, y*3, 3, 3))
+def display_minimap():
+    scale = 2
+    if mouse.x > game_settings.displayWidth-worldWidth*scale-10-scale and mouse.y < game_settings.displayHeight+10+scale:
+        scale = 5
+    pygame.draw.rect(window, (BLACK), (game_settings.displayWidth-10-(worldWidth+1)*scale, 10-scale, worldWidth*scale+scale*2, worldHeight*scale+scale*2))
+    pygame.draw.rect(window, (255, 255, 255), (game_settings.displayWidth-10-(worldWidth)*scale, 10, worldWidth*scale, worldHeight*scale))
+    for x in range(worldWidth):
+        for y in range(worldHeight):
+            index = x*worldHeight+y
+            if index < len(tiles) and tiles[index].covered != 255:
+                if tiles[index].building == "":
+                    pygame.draw.rect(window, tiles[index].tileMinimapColour, (game_settings.displayWidth-10-worldWidth*scale+x*scale, 10+y*scale, scale, scale))
+                else:
+                    pygame.draw.rect(window, tiles[index].buildingMinimapColour, (game_settings.displayWidth-10-worldWidth*scale+x*scale, 10+y*scale, scale, scale))
+    #pygame.draw.rect(window, (255, 0, 0), (game_settings.displayWidth-worldWidth-10+player.x, 10+player.y, 3, 3))
+def display_building_panel():
     displayX = building_settings.x
     displayY = building_settings.y
     window.blit(buildingPanel, (displayX-buildingPanel.get_width()/2, displayY-buildingPanel.get_height()/2))
@@ -1207,25 +1271,25 @@ def display_player_gui(f):
     if game_settings.menu == "game":
         # temperature
         if player.temperature < -20:
-            pygame.draw.polygon(window, (0, intensity*(abs(20+player.temperature)/30), intensity*((player.temperature+20)*-1)/30), ((displayHalfW-420, 0), (displayHalfW+420, 0), (displayHalfW+365, 55), (displayHalfW-365, 55)))
+            pygame.draw.polygon(window, (0, intensity*(abs(20+player.temperature)/30), intensity*((player.temperature+20)*-1)/30), ((game_settings.displayHalfWidth-420, 0), (game_settings.displayHalfWidth+420, 0), (game_settings.displayHalfWidth+365, 55), (game_settings.displayHalfWidth-365, 55)))
         elif player.temperature > 20:
-            pygame.draw.polygon(window, (intensity*((intensity-20)/255), 0, 0), ((displayHalfW-420, 0), (displayHalfW+420, 0), (displayHalfW+365, 55), (displayHalfW-365, 55)))
+            pygame.draw.polygon(window, (intensity*((intensity-20)/255), 0, 0), ((game_settings.displayHalfWidth-420, 0), (game_settings.displayHalfWidth+420, 0), (game_settings.displayHalfWidth+365, 55), (game_settings.displayHalfWidth-365, 55)))
         else:
-            pygame.draw.polygon(window, BLACK, ((displayHalfW-420, 0), (displayHalfW+420, 0), (displayHalfW+365, 55), (displayHalfW-365, 55)))
-        pygame.draw.polygon(window, (255, 255, 255), ((displayHalfW-410, 0), (displayHalfW-360, 0), (displayHalfW-360, 50)))
-        pygame.draw.polygon(window, (224, 25, 25), ((displayHalfW+410, 0), (displayHalfW+360, 0), (displayHalfW+360, 50)))
+            pygame.draw.polygon(window, BLACK, ((game_settings.displayHalfWidth-420, 0), (game_settings.displayHalfWidth+420, 0), (game_settings.displayHalfWidth+365, 55), (game_settings.displayHalfWidth-365, 55)))
+        pygame.draw.polygon(window, (255, 255, 255), ((game_settings.displayHalfWidth-410, 0), (game_settings.displayHalfWidth-360, 0), (game_settings.displayHalfWidth-360, 50)))
+        pygame.draw.polygon(window, (224, 25, 25), ((game_settings.displayHalfWidth+410, 0), (game_settings.displayHalfWidth+360, 0), (game_settings.displayHalfWidth+360, 50)))
         for i in range(len(cols)):
-            pygame.draw.rect(window, cols[i], (displayHalfW-355+55*i, 0, 50, 50))
-        window.blit(temperatureIndicator, (displayHalfW-25+(player.temperature)*7, 0))
+            pygame.draw.rect(window, cols[i], (game_settings.displayHalfWidth-355+55*i, 0, 50, 50))
+        window.blit(temperatureIndicator, (game_settings.displayHalfWidth-25+(player.temperature)*7, 0))
     
         # weight
-        pygame.draw.polygon(window, BLACK, ((displayHalfW-330, 70), (displayHalfW+330, 70), (displayHalfW+280, 120), (displayHalfW-280, 120)))
-        pygame.draw.polygon(window, (255-(min(1, player.curWeight/player.maxWeight))*38, 174-(min(1, player.curWeight/player.maxWeight))*150, 132-(min(1, player.curWeight/player.maxWeight))*132), ((displayHalfW-330+bord*3, 70+bord), (displayHalfW+330-bord*3, 70+bord), (displayHalfW+280-bord, 120-bord), (displayHalfW-280+bord, 120-bord)))
-        write_text("weight:"+str(int(player.curWeight*100)/100)+"/"+str(int(player.maxWeight)), displayHalfW, 75, 35, True, 255)
+        pygame.draw.polygon(window, BLACK, ((game_settings.displayHalfWidth-330, 70), (game_settings.displayHalfWidth+330, 70), (game_settings.displayHalfWidth+280, 120), (game_settings.displayHalfWidth-280, 120)))
+        pygame.draw.polygon(window, (255-(min(1, player.curWeight/player.maxWeight))*38, 174-(min(1, player.curWeight/player.maxWeight))*150, 132-(min(1, player.curWeight/player.maxWeight))*132), ((game_settings.displayHalfWidth-330+bord*3, 70+bord), (game_settings.displayHalfWidth+330-bord*3, 70+bord), (game_settings.displayHalfWidth+280-bord, 120-bord), (game_settings.displayHalfWidth-280+bord, 120-bord)))
+        write_text("weight:"+str(int(player.curWeight*100)/100)+"/"+str(int(player.maxWeight)), game_settings.displayHalfWidth, 75, 35, True, 255)
     elif game_settings.displayWidth == 1366 and game_settings.menu == "inventory":
-        pygame.draw.polygon(window, BLACK, ((displayHalfW-330, 0), (displayHalfW+330, 0), (displayHalfW+280, 50), (displayHalfW-280, 50)))
-        pygame.draw.polygon(window, (255-(min(1, player.curWeight/player.maxWeight))*38, 174-(min(1, player.curWeight/player.maxWeight))*150, 132-(min(1, player.curWeight/player.maxWeight))*132), ((displayHalfW-330+bord*3, bord), (displayHalfW+330-bord*3, bord), (displayHalfW+280-bord, 50-bord), (displayHalfW-280+bord, 50-bord)))
-        write_text("weight:"+str(int(player.curWeight*100)/100)+"/"+str(int(player.maxWeight)), displayHalfW, 10, 35, True, 255)
+        pygame.draw.polygon(window, BLACK, ((game_settings.displayHalfWidth-330, 0), (game_settings.displayHalfWidth+330, 0), (game_settings.displayHalfWidth+280, 50), (game_settings.displayHalfWidth-280, 50)))
+        pygame.draw.polygon(window, (255-(min(1, player.curWeight/player.maxWeight))*38, 174-(min(1, player.curWeight/player.maxWeight))*150, 132-(min(1, player.curWeight/player.maxWeight))*132), ((game_settings.displayHalfWidth-330+bord*3, bord), (game_settings.displayHalfWidth+330-bord*3, bord), (game_settings.displayHalfWidth+280-bord, 50-bord), (game_settings.displayHalfWidth-280+bord, 50-bord)))
+        write_text("weight:"+str(int(player.curWeight*100)/100)+"/"+str(int(player.maxWeight)), game_settings.displayHalfWidth, 10, 35, True, 255)
     
     # F3 menu
     if game_settings.menu != "crafting":
@@ -1329,8 +1393,8 @@ if __name__ == "__main__":
                     alph = pregameAnimation%510
                 pregameAnimateBackground[int(pregameAnimation/510)].set_alpha(alph)
                 window.blit(pregameAnimateBackground[int(pregameAnimation/510)], (0, (game_settings.displayHeight-game_settings.displayWidth)+pregameAnimation%510))
-                write_text(pregameFloatingTexts[int(pregameAnimation/510)*2], displayHalfW, (pregameAnimation%510)*1.5, 50+(pregameAnimation%510)*0.1, True, alph)
-                write_text(pregameFloatingTexts[int(pregameAnimation/510)*2+1], displayHalfW, (pregameAnimation%510)*1.5+70+(pregameAnimation%510)*0.1, 50+(pregameAnimation%510)*0.1, True, alph)
+                write_text(pregameFloatingTexts[int(pregameAnimation/510)*2], game_settings.displayHalfWidth, (pregameAnimation%510)*1.5, 50+(pregameAnimation%510)*0.1, True, alph)
+                write_text(pregameFloatingTexts[int(pregameAnimation/510)*2+1], game_settings.displayHalfWidth, (pregameAnimation%510)*1.5+70+(pregameAnimation%510)*0.1, 50+(pregameAnimation%510)*0.1, True, alph)
             else:
                 # MAIN PREGAME
                 pregameBackground.set_alpha((pregameAnimation-2040)/2)
@@ -1343,7 +1407,7 @@ if __name__ == "__main__":
                     pygame.draw.rect(window, GREY, ((pregameAnimation-2500)*-2+game_settings.displayWidth, 0, game_settings.displayWidth, game_settings.displayHeight))
                     pygame.draw.rect(window, (50, 50, 50), ((pregameAnimation-2500)*-2+game_settings.displayWidth, 175, 500, 125))
                     write_text("start", (pregameAnimation-2500)*-2+game_settings.displayWidth+200, 200, 75, True, 255)
-                elif 3000+displayHalfW-1 > pregameAnimation >= 2700:
+                elif 3000+game_settings.displayHalfWidth-1 > pregameAnimation >= 2700:
                     pygame.draw.rect(window, GREY, (game_settings.displayWidth-400, 0, game_settings.displayWidth, game_settings.displayHeight))
                     if mouse.x > game_settings.displayWidth-400 and 175 < mouse.y < 300:
                         pygame.draw.rect(window, (100, 100, 100), (game_settings.displayWidth-400, 175, 500, 125))
@@ -1354,8 +1418,8 @@ if __name__ == "__main__":
                     pregameAnimation = 3000
                     # world customisation
                 if pregameAnimation >= 3000:
-                    pygame.draw.rect(window, BLACK, (displayHalfW-(pregameAnimation-3000), 0, (pregameAnimation-3000)*2, game_settings.displayHeight))
-                    if pregameAnimation-3000 < displayHalfW:
+                    pygame.draw.rect(window, BLACK, (game_settings.displayHalfWidth-(pregameAnimation-3000), 0, (pregameAnimation-3000)*2, game_settings.displayHeight))
+                    if pregameAnimation-3000 < game_settings.displayHalfWidth:
                         pregameAnimation+=30
                     else:
                         customise_world()
@@ -1415,8 +1479,8 @@ if __name__ == "__main__":
                             game_settings.displayWidth = 1900
                             game_settings.displayHeight = 1040
                             crafting_settings = CRAFTING_SETTINGS()
-                        displayHalfH = game_settings.displayHeight/2
-                        displayHalfW = game_settings.displayWidth/2
+                        game_settings.displayHalfHeight = game_settings.displayHeight/2
+                        game_settings.displayHalfWidth = game_settings.displayWidth/2
                         displayTHeight = int(game_settings.displayHeight/tileSize)+2
                         displayTWidth = int(game_settings.displayWidth/tileSize)+2
                         
@@ -1494,8 +1558,8 @@ if __name__ == "__main__":
                 smooth_camera()
             display_held_item()
             weight_cal()
-            temperature_cal()
             if game_settings.menu == "game":
+                temperature_cal()
                 move_player(keyList)
                 if not keyList[pygame.K_LSHIFT]:
                     player_energize()
@@ -1527,6 +1591,7 @@ if __name__ == "__main__":
                 display_player_gui(frame)
                 menu_display()
             display_particles()
+            display_minimap()
         window.blit(mouse.sprite, (mouse.x-11, mouse.y-7))
         pygame.display.update()
         window.fill(GREY)
